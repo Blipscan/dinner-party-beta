@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dinner Party Planner - Beta</title>
+    <script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Georgia', serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); color: white; padding: 40px; text-align: center; }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .content { padding: 40px; }
+        .step { display: none; }
+        .step.active { display: block; }
+        .form-group { margin-bottom: 25px; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; color: #2c3e50; }
+        input[type="text"], input[type="number"], input[type="password"], select, textarea { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 16px; margin-bottom: 10px; }
+        button { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 15px 40px; border-radius: 10px; cursor: pointer; font-size: 18px; font-weight: bold; }
+        .menu-card { background: #f8f9fa; border: 2px solid #e0e0e0; border-radius: 12px; padding: 20px; margin-bottom: 20px; cursor: pointer; }
+        .menu-card:hover { border-color: #667eea; }
+        .menu-card.selected { border-color: #667eea; background: #f0f4ff; }
+        .chip-group { display: flex; flex-wrap: wrap; gap: 10px; }
+        .chip { padding: 8px 16px; background: #f0f0f0; border-radius: 20px; cursor: pointer; }
+        .chip.selected { background: #667eea; color: white; }
+        
+        /* Loading Stream Styles */
+        .loading { text-align: center; padding: 40px; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-log { font-family: 'Courier New', monospace; color: #667eea; font-size: 14px; margin-top: 15px; height: 20px; transition: opacity 0.5s; }
+        .fade-in { animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Beta Banner */
+        .beta-banner { background: #fff3cd; color: #856404; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center; border: 1px solid #ffeeba; }
+        
+        /* Cookbook Output Styles */
+        .cookbook-section { margin-bottom: 30px; border-bottom: 1px solid #eee; padding-bottom: 20px; }
+        .cookbook-section h3 { color: #2c3e50; margin-bottom: 15px; border-bottom: 2px solid #667eea; padding-bottom: 5px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🍽️ Dinner Party Planner</h1>
+            <p>Beta Access • AI Powered</p>
+        </div>
+
+        <div class="content">
+            <div id="stepBeta" class="step active">
+                <div class="beta-banner">
+                    <h3>🔐 Beta Access Required</h3>
+                    <p>Enter your invitation code to begin.</p>
+                </div>
+                <div class="form-group" style="text-align: center;">
+                    <input type="password" id="accessCode" placeholder="Enter code..." style="max-width: 300px;">
+                </div>
+                <div style="text-align: center;">
+                    <button onclick="verifyAccess()">Enter Planner</button>
+                </div>
+            </div>
+
+            <div id="step1" class="step">
+                <h2>Event Details</h2>
+                <div class="form-group"><label>Event Title</label><input type="text" id="eventTitle" placeholder="e.g. Birthday Dinner"></div>
+                <div class="form-group"><label>Guests</label><input type="number" id="guests" value="6"></div>
+                <button onclick="goToStep(2)">Next</button>
+            </div>
+
+            <div id="step2" class="step">
+                <h2>Menu Category</h2>
+                <select id="menuCategory">
+                    <option value="tasting">Chef's Tasting Menu</option>
+                    <option value="seasonal">Seasonal Farm-to-Table</option>
+                    <option value="regional">Regional American</option>
+                </select>
+                <div style="margin-top:20px"><button onclick="goToStep(3)">Next</button></div>
+            </div>
+
+            <div id="step3" class="step">
+                <h2>Preferences</h2>
+                <div class="form-group"><label>Food Budget</label><select id="foodBudget"><option>$100-150</option><option selected>$150-200</option><option>$200+</option></select></div>
+                <div class="form-group"><label>Wine Budget</label><select id="wineBudget"><option selected>$100-150</option><option>$150+</option></select></div>
+                <div class="form-group"><label>Likes</label><div class="chip-group" id="likesChips"></div></div>
+                <div class="form-group"><label>Dislikes</label><div class="chip-group" id="dislikesChips"></div></div>
+                <div class="form-group"><label>Skill</label><select id="skillLevel"><option>Comfortable</option><option>Experienced</option></select></div>
+                <button onclick="generateMenus()">Generate Menus</button>
+            </div>
+
+            <div id="step4" class="step">
+                <h2>Select Menu</h2>
+                <div id="menusContainer"></div>
+                <button onclick="generateCookbook()">Generate Cookbook</button>
+            </div>
+
+            <div id="step5" class="step">
+                <h2>Your Cookbook</h2>
+                <div id="cookbookOutput"></div>
+                <div style="margin-top:30px; display: flex; gap: 10px;">
+                    <button onclick="generateDocx()">📥 Download DOCX</button>
+                    <button onclick="location.reload()" style="background: #6c757d;">Start Over</button>
+                </div>
+            </div>
+
+            <div id="loading" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <h3 id="loadingTitle">Working...</h3>
+                <div id="loadingText" class="loading-log">Initializing...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const state = { accessCode: '', currentStep: 0, menus: [], selectedMenu: null, cookbook: null, likes: [], dislikes: [] };
+        
+        // --- THOUGHT STREAM LOGIC ---
+        let thoughtInterval;
+        function startThinking(phase) {
+            const output = document.getElementById('loadingText');
+            const title = document.getElementById('loadingTitle');
+            let thoughts = phase === 'menu' 
+                ? ["Analyzing flavor profile...", "Checking seasonality...", "Balancing textures...", "Reviewing restrictions...", "Brainstorming pairings..."]
+                : ["Drafting detailed recipes...", "Compiling shopping list...", "Calculating prep timeline...", "Consulting sommelier...", "Designing table setting..."];
+            
+            title.textContent = phase === 'menu' ? "Designing Menus" : "Writing Cookbook";
+            let i = 0;
+            output.textContent = thoughts[0];
+            if (thoughtInterval) clearInterval(thoughtInterval);
+            thoughtInterval = setInterval(() => {
+                i = (i + 1) % thoughts.length;
+                output.textContent = thoughts[i];
+            }, 2500);
+        }
+        function stopThinking() { if (thoughtInterval) clearInterval(thoughtInterval); }
+
+        // --- CORE FUNCTIONS ---
+        async function verifyAccess() {
+            const code = document.getElementById('accessCode').value;
+            try {
+                const res = await fetch('/api/verify', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ code }) });
+                const data = await res.json();
+                if (data.valid) { state.accessCode = code; goToStep(1); } else { alert('Invalid Code'); }
+            } catch (e) { alert('Server Error'); }
+        }
+
+        async function generateMenus() {
+            document.getElementById('step3').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+            startThinking('menu');
+            
+            const payload = {
+                eventTitle: document.getElementById('eventTitle').value,
+                guests: document.getElementById('guests').value,
+                menuCategory: document.getElementById('menuCategory').value,
+                foodBudget: document.getElementById('foodBudget').value,
+                wineBudget: document.getElementById('wineBudget').value,
+                likes: state.likes, dislikes: state.dislikes,
+                skillLevel: document.getElementById('skillLevel').value
+            };
+
+            try {
+                const res = await fetch('/api/generate-menu', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ accessCode: state.accessCode, data: payload })
+                });
+                const data = await res.json();
+                if(data.error) throw new Error(data.error);
+                state.menus = data.menus;
+                displayMenus();
+                stopThinking();
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('step4').classList.add('active');
+            } catch (e) {
+                stopThinking();
+                alert('Error: ' + e.message);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('step3').style.display = 'block';
+            }
+        }
+
+        async function generateCookbook() {
+            if(!state.selectedMenu) return alert('Select a menu');
+            document.getElementById('step4').style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+            startThinking('cookbook');
+
+            try {
+                const res = await fetch('/api/generate-cookbook', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ 
+                        accessCode: state.accessCode,
+                        data: {
+                            eventTitle: document.getElementById('eventTitle').value,
+                            guests: document.getElementById('guests').value,
+                            skillLevel: document.getElementById('skillLevel').value,
+                            menu: state.selectedMenu
+                        } 
+                    })
+                });
+                const data = await res.json();
+                state.cookbook = data;
+                displayCookbook(data);
+                stopThinking();
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('step5').classList.add('active');
+            } catch (e) {
+                stopThinking();
+                alert('Error: ' + e.message);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('step4').style.display = 'block';
+            }
+        }
+
+        // --- UI HELPERS ---
+        function goToStep(n) {
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+            if(n===1) document.getElementById('step1').classList.add('active');
+            if(n===2) document.getElementById('step2').classList.add('active');
+            if(n===3) document.getElementById('step3').classList.add('active');
+            if(n===4) document.getElementById('step4').classList.add('active');
+        }
+
+        function displayMenus() {
+            document.getElementById('menusContainer').innerHTML = state.menus.map((m, i) => `
+                <div class="menu-card" onclick="selectMenu(${i})">
+                    <h3>${m.name}</h3><p>${m.description}</p>
+                </div>`).join('');
+        }
+
+        function selectMenu(i) {
+            state.selectedMenu = state.menus[i];
+            document.querySelectorAll('.menu-card').forEach((c, idx) => c.classList.toggle('selected', idx===i));
+        }
+
+        function displayCookbook(cb) {
+            const safeMap = (arr, fn) => Array.isArray(arr) ? arr.map(fn).join('') : '';
+            const html = `
+                <div class="cookbook-section"><h3>${cb.title}</h3></div>
+                <div class="cookbook-section"><h3>Detailed Recipes</h3>
+                    ${safeMap(cb.recipes.courses, r => `
+                        <div style="margin-bottom:20px">
+                            <h4>${r.course}: ${r.dish}</h4>
+                            <p><em>Yield: ${r.yield}</em></p>
+                            <ul>${safeMap(r.ingredients, i => `<li>${i.amount} ${i.item}</li>`)}</ul>
+                            <ol style="margin-left:20px; margin-top:10px">${safeMap(r.instructions, s => `<li>${s}</li>`)}</ol>
+                        </div>`)}
+                </div>
+                <div class="cookbook-section"><h3>Shopping List</h3>
+                    ${cb.shopping.proteins.length ? '<h4>Proteins</h4><ul>'+safeMap(cb.shopping.proteins, i=>`<li>${i.quantity} ${i.item}</li>`)+'</ul>' : ''}
+                    ${cb.shopping.produce.length ? '<h4>Produce</h4><ul>'+safeMap(cb.shopping.produce, i=>`<li>${i.quantity} ${i.item}</li>`)+'</ul>' : ''}
+                    ${cb.shopping.dairy.length ? '<h4>Dairy</h4><ul>'+safeMap(cb.shopping.dairy, i=>`<li>${i.quantity} ${i.item}</li>`)+'</ul>' : ''}
+                </div>`;
+            document.getElementById('cookbookOutput').innerHTML = html;
+        }
+
+        // --- INIT ---
+        window.addEventListener('DOMContentLoaded', () => {
+            const likes = ['Seafood', 'Beef', 'Vegetarian', 'Rich sauces'];
+            const dislikes = ['Shellfish', 'Pork', 'Mushrooms', 'Cilantro'];
+            initChips('likesChips', likes, 'likes');
+            initChips('dislikesChips', dislikes, 'dislikes');
+        });
+
+        function initChips(id, opts, key) {
+            const c = document.getElementById(id);
+            opts.forEach(o => {
+                const el = document.createElement('div');
+                el.className = 'chip'; el.textContent = o;
+                el.onclick = () => {
+                    el.classList.toggle('selected');
+                    const i = state[key].indexOf(o);
+                    if(i>-1) state[key].splice(i,1); else state[key].push(o);
+                };
+                c.appendChild(el);
+            });
+        }
+        
+        async function generateDocx() {
+            if(!state.cookbook) return;
+            const { Document, Packer, Paragraph, TextRun } = docx;
+            const cb = state.cookbook;
+            
+            const children = [
+                new Paragraph({ children: [new TextRun({ text: cb.title, bold: true, size: 48 })] }),
+                new Paragraph({ text: "" }),
+                new Paragraph({ children: [new TextRun({ text: "Recipes", bold: true, size: 32 })] }),
+            ];
+            
+            // Add recipes
+            cb.recipes.courses.forEach(r => {
+                children.push(new Paragraph({ children: [new TextRun({ text: r.dish, bold: true, size: 24 })] }));
+                r.ingredients.forEach(i => children.push(new Paragraph({ text: `• ${i.amount} ${i.item}` })));
+                r.instructions.forEach((s, idx) => children.push(new Paragraph({ text: `${idx+1}. ${s}` })));
+                children.push(new Paragraph({ text: "" }));
+            });
+
+            const doc = new Document({ sections: [{ children }] });
+            const blob = await Packer.toBlob(doc);
+            saveAs(blob, "Cookbook.docx");
+        }
+    </script>
+</body>
+</html>
