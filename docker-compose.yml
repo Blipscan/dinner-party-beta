@@ -3,5 +3,7 @@ services:
     build: .
     ports:
       - "5000:5000"
-    env_file:
-      - .env
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - BETA_ACCESS_CODE=${BETA_ACCESS_CODE:-THAMES_CLUB_VIP}
+      - PORT=5000

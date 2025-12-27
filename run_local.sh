@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 is required. Install Python 3.10+ and try again."
+  exit 1
+fi
+
 if [[ ! -d ".venv" ]]; then
-  python3 -m venv .venv
+  python3 -m venv .venv || {
+    echo "Failed to create venv. On Ubuntu/Debian you may need: sudo apt install python3-venv"
+    exit 1
+  }
 fi
 
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -q --upgrade pip
+python -m pip install -q -r requirements.txt
 
 if [[ ! -f ".env" && -f ".env.example" ]]; then
   cp .env.example .env

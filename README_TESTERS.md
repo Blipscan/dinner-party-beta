@@ -9,14 +9,14 @@ This is a small local web app. You run it on your computer and open it in your b
 ### Option A — Run with Docker (fastest)
 1. Install Docker Desktop (if you don't already have it).
 2. Unzip this package.
-3. In a terminal in the unzipped folder, run:
+3. (Recommended) Create a `.env` file for your API key:
 
 ```bash
 cp .env.example .env
 ```
 
 4. Edit `.env` and set **ANTHROPIC_API_KEY**.
-5. Start the app:
+5. Start the app (from the unzipped folder):
 
 ```bash
 docker compose up --build
@@ -33,7 +33,24 @@ docker compose down
 
 ### Option B — Run with Python
 1. Unzip this package.
-2. In a terminal in the unzipped folder, run:
+2. Run the one-command launcher:
+
+**Mac/Linux**
+
+```bash
+./run_local.sh
+```
+
+**Windows (PowerShell)**
+
+```powershell
+.\run_local.ps1
+```
+
+The first run will create `.env` from `.env.example`. Edit `.env` and set **ANTHROPIC_API_KEY**, then re-run the launcher.
+
+### Manual Python steps (if you prefer)
+In a terminal in the unzipped folder, run:
 
 ```bash
 python3 -m venv .venv
@@ -42,8 +59,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-3. Edit `.env` and set **ANTHROPIC_API_KEY**.
-4. Start the app:
+Then edit `.env` and set **ANTHROPIC_API_KEY**, and start the app:
 
 ```bash
 python app.py
@@ -53,5 +69,5 @@ python app.py
 - http://localhost:5000
 
 ### Notes
-- **ANTHROPIC_API_KEY is required** for menu/cookbook generation.
+- The app will load without an API key, but **ANTHROPIC_API_KEY is required** for menu/cookbook generation.
 - **BETA_ACCESS_CODE** is optional; if you don't set it, the app uses `THAMES_CLUB_VIP`.

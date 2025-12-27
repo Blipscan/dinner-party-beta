@@ -10,8 +10,12 @@ load_dotenv()
 app = Flask(__name__)
 
 # --- CONFIGURATION ---
-API_KEY = os.getenv("ANTHROPIC_API_KEY")
-BETA_CODE = os.getenv("BETA_ACCESS_CODE", "THAMES_CLUB_VIP")
+def get_api_key():
+    return os.getenv("ANTHROPIC_API_KEY")
+
+
+def get_beta_code():
+    return os.getenv("BETA_ACCESS_CODE", "THAMES_CLUB_VIP")
 
 # --- PROPRIETARY LOGIC ---
 PERSONAS = {
@@ -27,11 +31,14 @@ PERSONAS = {
 }
 
 def call_claude(prompt):
-    if not API_KEY:
-        raise ValueError("Server configuration error: API Key missing")
+    api_key = get_api_key()
+    if not api_key:
+        raise ValueError(
+            "Missing ANTHROPIC_API_KEY. Set it in .env (recommended) or your environment and restart the app."
+        )
         
     headers = {
-        "x-api-key": API_KEY,
+        "x-api-key": api_key,
         "anthropic-version": "2023-06-01",
         "content-type": "application/json"
     }
@@ -42,7 +49,12 @@ def call_claude(prompt):
     }
     
     try:
-        response = requests.post("https://api.anthropic.com/v1/messages", headers=headers, json=data)
+        response = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers=headers,
+            json=data,
+            timeout=90,
+        )
         response.raise_for_status()
         result = response.json()
         return result['content'][0]['text']
@@ -70,13 +82,13 @@ def home():
 @app.route('/api/verify', methods=['POST'])
 def verify_access():
     code = request.json.get('code', '')
-    if code == BETA_CODE:
+    if code == get_beta_code():
         return jsonify({"valid": True})
     return jsonify({"valid": False}), 401
 
 @app.route('/api/generate-menu', methods=['POST'])
 def generate_menu():
-    if request.json.get('accessCode') != BETA_CODE:
+    if request.json.get('accessCode') != get_beta_code():
         return jsonify({"error": "Unauthorized"}), 401
     
     data = request.json.get('data')
@@ -129,12 +141,14 @@ RESPOND WITH ONLY VALID JSON:
     try:
         raw_response = call_claude(prompt)
         return jsonify(extract_json(raw_response))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 503
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/generate-cookbook', methods=['POST'])
 def generate_cookbook():
-    if request.json.get('accessCode') != BETA_CODE:
+    if request.json.get('accessCode') != get_beta_code():
         return jsonify({"error": "Unauthorized"}), 401
         
     data = request.json.get('data')
@@ -251,8 +265,13 @@ def generate_cookbook():
     try:
         raw_response = call_claude(prompt)
         return jsonify(extract_json(raw_response))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 503
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "5000"))
+    debug = os.getenv("FLASK_DEBUG", "1") == "1"
+    app.run(host=host, debug=debug, port=port)
