@@ -1,5 +1,6 @@
 import os
 import json
+import hmac
 import requests
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
@@ -11,7 +12,11 @@ app = Flask(__name__)
 
 # --- CONFIGURATION ---
 API_KEY = os.getenv("ANTHROPIC_API_KEY")
-BETA_CODE = os.getenv("BETA_ACCESS_CODE", "THAMES_CLUB_VIP")
+BETA_CODE = os.getenv("BETA_ACCESS_CODE")
+
+if not BETA_CODE:
+    # Safer than a hard-coded default that effectively disables access control.
+    raise RuntimeError("Missing required environment variable: BETA_ACCESS_CODE")
 
 # --- PROPRIETARY LOGIC ---
 PERSONAS = {
@@ -42,7 +47,13 @@ def call_claude(prompt):
     }
     
     try:
-        response = requests.post("https://api.anthropic.com/v1/messages", headers=headers, json=data)
+        # Always use a timeout so workers can't hang indefinitely.
+        response = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers=headers,
+            json=data,
+            timeout=30,
+        )
         response.raise_for_status()
         result = response.json()
         return result['content'][0]['text']
@@ -51,15 +62,48 @@ def call_claude(prompt):
         raise e
 
 def extract_json(response_text):
+    # Claude may return JSON wrapped in code fences; strip them first.
+    text = (response_text or "").strip()
+    if text.startswith("```"):
+        # Remove the first fenced block marker (optionally with language) and trailing fence.
+        text = text.split("\n", 1)[-1]
+        if text.endswith("```"):
+            text = text[:-3].strip()
     try:
-        start = response_text.find('{')
-        end = response_text.rfind('}') + 1
-        if start == -1 or end == 0:
-            raise ValueError("No JSON found in response")
-        return json.loads(response_text[start:end])
+        return json.loads(text)
     except Exception as e:
-        print(f"JSON Parse Error. Raw text: {response_text[:100]}...")
-        raise e
+        # Fallback: best-effort extraction of a JSON object/array from surrounding text.
+        start_obj = text.find('{')
+        start_arr = text.find('[')
+        if start_obj == -1 and start_arr == -1:
+            print(f"JSON Parse Error. Raw text: {text[:100]}...")
+            raise e
+        start = start_obj if start_arr == -1 else (start_arr if start_obj == -1 else min(start_obj, start_arr))
+        end_obj = text.rfind('}')
+        end_arr = text.rfind(']')
+        end = max(end_obj, end_arr) + 1
+        if end <= start:
+            print(f"JSON Parse Error. Raw text: {text[:100]}...")
+            raise e
+        try:
+            return json.loads(text[start:end])
+        except Exception:
+            print(f"JSON Parse Error. Raw text: {text[:100]}...")
+            raise e
+
+
+def _get_json_body():
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return None
+    return body
+
+
+def _check_access_code(code) -> bool:
+    # Constant-time compare to avoid leaking info via timing.
+    if code is None:
+        return False
+    return hmac.compare_digest(str(code), str(BETA_CODE))
 
 # --- ROUTES ---
 
@@ -69,17 +113,27 @@ def home():
 
 @app.route('/api/verify', methods=['POST'])
 def verify_access():
-    code = request.json.get('code', '')
-    if code == BETA_CODE:
+    body = _get_json_body()
+    if body is None:
+        return jsonify({"error": "Invalid JSON body"}), 400
+
+    code = body.get('code', '')
+    if _check_access_code(code):
         return jsonify({"valid": True})
     return jsonify({"valid": False}), 401
 
 @app.route('/api/generate-menu', methods=['POST'])
 def generate_menu():
-    if request.json.get('accessCode') != BETA_CODE:
+    body = _get_json_body()
+    if body is None:
+        return jsonify({"error": "Invalid JSON body"}), 400
+
+    if not _check_access_code(body.get('accessCode')):
         return jsonify({"error": "Unauthorized"}), 401
     
-    data = request.json.get('data')
+    data = body.get('data')
+    if not isinstance(data, dict):
+        return jsonify({"error": "Invalid payload: 'data' must be an object"}), 400
     
     # Build Prompt
     cat = data.get('menuCategory')
@@ -130,16 +184,28 @@ RESPOND WITH ONLY VALID JSON:
         raw_response = call_claude(prompt)
         return jsonify(extract_json(raw_response))
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        # Don't leak internals / upstream details to clients.
+        return jsonify({"error": "Failed to generate menu"}), 500
 
 @app.route('/api/generate-cookbook', methods=['POST'])
 def generate_cookbook():
-    if request.json.get('accessCode') != BETA_CODE:
+    body = _get_json_body()
+    if body is None:
+        return jsonify({"error": "Invalid JSON body"}), 400
+
+    if not _check_access_code(body.get('accessCode')):
         return jsonify({"error": "Unauthorized"}), 401
         
-    data = request.json.get('data')
+    data = body.get('data')
+    if not isinstance(data, dict):
+        return jsonify({"error": "Invalid payload: 'data' must be an object"}), 400
+
     menu = data.get('menu')
     guests = data.get('guests')
+    if not isinstance(menu, dict) or not isinstance(menu.get('courses'), dict):
+        return jsonify({"error": "Invalid payload: 'menu' is missing/invalid"}), 400
+    if guests is None:
+        return jsonify({"error": "Invalid payload: 'guests' is required"}), 400
     
     # "RECIPES FIRST" Logic
     prompt = f"""You are assembling a complete dinner party cookbook.
@@ -252,7 +318,8 @@ def generate_cookbook():
         raw_response = call_claude(prompt)
         return jsonify(extract_json(raw_response))
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Failed to generate cookbook"}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    debug = os.getenv("FLASK_DEBUG", "").lower() in {"1", "true", "yes", "on"}
+    app.run(debug=debug, port=5000)

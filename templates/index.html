@@ -137,6 +137,17 @@
         function stopThinking() { if (thoughtInterval) clearInterval(thoughtInterval); }
 
         // --- CORE FUNCTIONS ---
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"'`]/g, (ch) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;',
+                '`': '&#96;',
+            }[ch]));
+        }
+
         async function verifyAccess() {
             const code = document.getElementById('accessCode').value;
             try {
@@ -201,6 +212,7 @@
                     })
                 });
                 const data = await res.json();
+                if(data.error) throw new Error(data.error);
                 state.cookbook = data;
                 displayCookbook(data);
                 stopThinking();
@@ -226,7 +238,7 @@
         function displayMenus() {
             document.getElementById('menusContainer').innerHTML = state.menus.map((m, i) => `
                 <div class="menu-card" onclick="selectMenu(${i})">
-                    <h3>${m.name}</h3><p>${m.description}</p>
+                    <h3>${escapeHtml(m.name)}</h3><p>${escapeHtml(m.description)}</p>
                 </div>`).join('');
         }
 
@@ -238,20 +250,20 @@
         function displayCookbook(cb) {
             const safeMap = (arr, fn) => Array.isArray(arr) ? arr.map(fn).join('') : '';
             const html = `
-                <div class="cookbook-section"><h3>${cb.title}</h3></div>
+                <div class="cookbook-section"><h3>${escapeHtml(cb.title)}</h3></div>
                 <div class="cookbook-section"><h3>Detailed Recipes</h3>
-                    ${safeMap(cb.recipes.courses, r => `
+                    ${safeMap(cb?.recipes?.courses, r => `
                         <div style="margin-bottom:20px">
-                            <h4>${r.course}: ${r.dish}</h4>
-                            <p><em>Yield: ${r.yield}</em></p>
-                            <ul>${safeMap(r.ingredients, i => `<li>${i.amount} ${i.item}</li>`)}</ul>
-                            <ol style="margin-left:20px; margin-top:10px">${safeMap(r.instructions, s => `<li>${s}</li>`)}</ol>
+                            <h4>${escapeHtml(r.course)}: ${escapeHtml(r.dish)}</h4>
+                            <p><em>Yield: ${escapeHtml(r.yield)}</em></p>
+                            <ul>${safeMap(r.ingredients, i => `<li>${escapeHtml(i.amount)} ${escapeHtml(i.item)}</li>`)}</ul>
+                            <ol style="margin-left:20px; margin-top:10px">${safeMap(r.instructions, s => `<li>${escapeHtml(s)}</li>`)}</ol>
                         </div>`)}
                 </div>
                 <div class="cookbook-section"><h3>Shopping List</h3>
-                    ${cb.shopping.proteins.length ? '<h4>Proteins</h4><ul>'+safeMap(cb.shopping.proteins, i=>`<li>${i.quantity} ${i.item}</li>`)+'</ul>' : ''}
-                    ${cb.shopping.produce.length ? '<h4>Produce</h4><ul>'+safeMap(cb.shopping.produce, i=>`<li>${i.quantity} ${i.item}</li>`)+'</ul>' : ''}
-                    ${cb.shopping.dairy.length ? '<h4>Dairy</h4><ul>'+safeMap(cb.shopping.dairy, i=>`<li>${i.quantity} ${i.item}</li>`)+'</ul>' : ''}
+                    ${cb?.shopping?.proteins?.length ? '<h4>Proteins</h4><ul>'+safeMap(cb.shopping.proteins, i=>`<li>${escapeHtml(i.quantity)} ${escapeHtml(i.item)}</li>`)+'</ul>' : ''}
+                    ${cb?.shopping?.produce?.length ? '<h4>Produce</h4><ul>'+safeMap(cb.shopping.produce, i=>`<li>${escapeHtml(i.quantity)} ${escapeHtml(i.item)}</li>`)+'</ul>' : ''}
+                    ${cb?.shopping?.dairy?.length ? '<h4>Dairy</h4><ul>'+safeMap(cb.shopping.dairy, i=>`<li>${escapeHtml(i.quantity)} ${escapeHtml(i.item)}</li>`)+'</ul>' : ''}
                 </div>`;
             document.getElementById('cookbookOutput').innerHTML = html;
         }
