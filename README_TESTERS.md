@@ -3,35 +3,9 @@
 This is a small local web app. You run it on your computer and open it in your browser.
 
 ### What you need
-- **Option A (recommended): Docker Desktop** (works on Mac/Windows/Linux)
-- **Option B: Python 3.10+** and the ability to install Python packages
+- **Python 3.10+** and the ability to install Python packages
 
-### Option A — Run with Docker (fastest)
-1. Install Docker Desktop (if you don't already have it).
-2. Unzip this package.
-3. (Recommended) Create a `.env` file for your API key:
-
-```bash
-cp .env.example .env
-```
-
-4. Edit `.env` and set **ANTHROPIC_API_KEY**.
-5. Start the app (from the unzipped folder):
-
-```bash
-docker compose up --build
-```
-
-6. Open:
-- http://localhost:5000
-
-To stop:
-
-```bash
-docker compose down
-```
-
-### Option B — Run with Python
+### Run (recommended)
 1. Unzip this package.
 2. Run the one-command launcher:
 
